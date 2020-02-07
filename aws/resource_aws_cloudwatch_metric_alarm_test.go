@@ -795,6 +795,12 @@ data "aws_ami" "amzn-ami-minimal-hvm-ebs" {
   }
 }
 
+data "aws_availability_zones" "available" {
+  # t2.micro instance type is not available in these AZ
+  blacklisted_zone_ids = ["usw2-az4"]
+  state                = "available"
+}
+
 data "aws_partition" "current" {}
 
 data "aws_region" "current" {}
@@ -808,8 +814,9 @@ resource "aws_vpc" "test" {
 }
 
 resource "aws_subnet" "test" {
-  vpc_id     = "${aws_vpc.test.id}"
-  cidr_block = "172.16.0.0/24"
+  availability_zone = "${data.aws_availability_zones.available.names[0]}"
+  cidr_block        = "172.16.0.0/24"
+  vpc_id            = "${aws_vpc.test.id}"
 
   tags = {
     Name = %q
