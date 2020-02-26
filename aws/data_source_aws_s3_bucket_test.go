@@ -14,6 +14,7 @@ func TestAccDataSourceS3Bucket_basic(t *testing.T) {
 	arnRegexp := regexp.MustCompile(`^arn:aws[\w-]*:s3:::`)
 	region := testAccGetRegion()
 	hostedZoneID, _ := HostedZoneIDForRegion(region)
+	client := testAccProvider.Meta().(*AWSClient)
 
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:  func() { testAccPreCheck(t) },
@@ -26,7 +27,7 @@ func TestAccDataSourceS3Bucket_basic(t *testing.T) {
 					resource.TestMatchResourceAttr("data.aws_s3_bucket.bucket", "arn", arnRegexp),
 					resource.TestCheckResourceAttr("data.aws_s3_bucket.bucket", "region", region),
 					resource.TestCheckResourceAttr(
-						"data.aws_s3_bucket.bucket", "bucket_domain_name", testAccBucketDomainName(rInt)),
+						"data.aws_s3_bucket.bucket", "bucket_domain_name", testAccBucketDomainName(client, rInt)),
 					resource.TestCheckResourceAttr(
 						"data.aws_s3_bucket.bucket", "bucket_regional_domain_name", testAccBucketRegionalDomainName(rInt, region)),
 					resource.TestCheckResourceAttr(
@@ -41,6 +42,7 @@ func TestAccDataSourceS3Bucket_basic(t *testing.T) {
 func TestAccDataSourceS3Bucket_website(t *testing.T) {
 	rInt := acctest.RandInt()
 	region := testAccGetRegion()
+	client := testAccProvider.Meta().(*AWSClient)
 
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:  func() { testAccPreCheck(t) },
@@ -53,7 +55,7 @@ func TestAccDataSourceS3Bucket_website(t *testing.T) {
 					testAccCheckAWSS3BucketWebsite(
 						"data.aws_s3_bucket.bucket", "index.html", "error.html", "", ""),
 					resource.TestCheckResourceAttr(
-						"data.aws_s3_bucket.bucket", "website_endpoint", testAccWebsiteEndpoint(rInt, region)),
+						"data.aws_s3_bucket.bucket", "website_endpoint", testAccWebsiteEndpoint(client, rInt, region)),
 				),
 			},
 		},
