@@ -465,6 +465,21 @@ func resourceAwsS3Bucket() *schema.Resource {
 														},
 													},
 												},
+												"metrics": {
+													Type:     schema.TypeList,
+													Optional: true,
+													MinItems: 1,
+													MaxItems: 1,
+													Elem: &schema.Resource{
+														Schema: map[string]*schema.Schema{
+															"status": {
+																Type:         schema.TypeString,
+																Required:     true,
+																ValidateFunc: validation.StringInSlice(s3.MetricsStatus_Values(), false),
+															},
+														},
+													},
+												},
 											},
 										},
 									},
@@ -2038,6 +2053,13 @@ func resourceAwsS3BucketReplicationConfigurationUpdate(s3conn *s3.S3, d *schema.
 					ruleAclTranslation.Owner = aws.String(aclTranslationValues["owner"].(string))
 					ruleDestination.AccessControlTranslation = ruleAclTranslation
 				}
+
+				if metrics, ok := bd["metrics"].([]interface{}); ok && len(metrics) > 0 {
+					metricsValues := metrics[0].(map[string]interface{})
+					ruleMetrics := &s3.Metrics{}
+					ruleMetrics.Status = aws.String(metricsValues["status"].(string))
+					ruleDestination.Metrics = ruleMetrics
+				}
 			}
 		}
 		rcRule.Destination = ruleDestination
@@ -2330,6 +2352,12 @@ func flattenAwsS3BucketReplicationConfiguration(r *s3.ReplicationConfiguration) 
 				}
 				rd["access_control_translation"] = []interface{}{rdt}
 			}
+			if v.Destination.Metrics != nil {
+				rdm := map[string]interface{}{
+					"status": aws.StringValue(v.Destination.Metrics.Status),
+				}
+				rd["metrics"] = []interface{}{rdm}
+			}
 			t["destination"] = []interface{}{rd}
 		}
 
@@ -2586,6 +2614,9 @@ func destinationHash(v interface{}) int {
 	if v, ok := m["access_control_translation"].([]interface{}); ok && len(v) > 0 && v[0] != nil {
 		buf.WriteString(fmt.Sprintf("%d-", accessControlTranslationHash(v[0])))
 	}
+	if v, ok := m["metrics"].([]interface{}); ok && len(v) > 0 && v[0] != nil {
+		buf.WriteString(fmt.Sprintf("%d-", metricsHash(v[0])))
+	}
 	return hashcode.String(buf.String())
 }
 
@@ -2598,6 +2629,20 @@ func accessControlTranslationHash(v interface{}) int {
 	}
 
 	if v, ok := m["owner"]; ok {
+		buf.WriteString(fmt.Sprintf("%s-", v.(string)))
+	}
+	return hashcode.String(buf.String())
+}
+
+func metricsHash(v interface{}) int {
+	var buf bytes.Buffer
+	m, ok := v.(map[string]interface{})
+
+	if !ok {
+		return 0
+	}
+
+	if v, ok := m["status"]; ok {
 		buf.WriteString(fmt.Sprintf("%s-", v.(string)))
 	}
 	return hashcode.String(buf.String())
