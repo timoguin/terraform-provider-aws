@@ -28,19 +28,6 @@ import (
 
 const s3BucketCreationTimeout = 2 * time.Minute
 
-// These should be defined in the AWS SDK for Go. There is an open issue https://github.com/aws/aws-sdk-go/issues/2683
-const (
-	BucketCannedACLAwsExecRead      = "aws-exec-read"
-	BucketCannedACLLogDeliveryWrite = "log-delivery-write"
-)
-
-func BucketCannedACL_Values() []string {
-	result := s3.BucketCannedACL_Values()
-	result = appendUniqueString(result, BucketCannedACLAwsExecRead)
-	result = appendUniqueString(result, BucketCannedACLLogDeliveryWrite)
-	return result
-}
-
 func resourceAwsS3Bucket() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceAwsS3BucketCreate,
@@ -89,7 +76,6 @@ func resourceAwsS3Bucket() *schema.Resource {
 				Default:       "private",
 				Optional:      true,
 				ConflictsWith: []string{"grant"},
-				ValidateFunc:  validation.StringInSlice(BucketCannedACL_Values(), false),
 			},
 
 			"grant": {
@@ -106,7 +92,6 @@ func resourceAwsS3Bucket() *schema.Resource {
 						"type": {
 							Type:     schema.TypeString,
 							Required: true,
-							// TypeAmazonCustomerByEmail is not currently supported
 							ValidateFunc: validation.StringInSlice([]string{
 								s3.TypeCanonicalUser,
 								s3.TypeGroup,
@@ -122,8 +107,14 @@ func resourceAwsS3Bucket() *schema.Resource {
 							Required: true,
 							Set:      schema.HashString,
 							Elem: &schema.Schema{
-								Type:         schema.TypeString,
-								ValidateFunc: validation.StringInSlice(s3.Permission_Values(), false),
+								Type: schema.TypeString,
+								ValidateFunc: validation.StringInSlice([]string{
+									s3.PermissionFullControl,
+									s3.PermissionRead,
+									s3.PermissionReadAcp,
+									s3.PermissionWrite,
+									s3.PermissionWriteAcp,
+								}, false),
 							},
 						},
 					},
@@ -390,17 +381,23 @@ func resourceAwsS3Bucket() *schema.Resource {
 			},
 
 			"acceleration_status": {
-				Type:         schema.TypeString,
-				Optional:     true,
-				Computed:     true,
-				ValidateFunc: validation.StringInSlice(s3.BucketAccelerateStatus_Values(), false),
+				Type:     schema.TypeString,
+				Optional: true,
+				Computed: true,
+				ValidateFunc: validation.StringInSlice([]string{
+					s3.BucketAccelerateStatusEnabled,
+					s3.BucketAccelerateStatusSuspended,
+				}, false),
 			},
 
 			"request_payer": {
-				Type:         schema.TypeString,
-				Optional:     true,
-				Computed:     true,
-				ValidateFunc: validation.StringInSlice(s3.Payer_Values(), false),
+				Type:     schema.TypeString,
+				Optional: true,
+				Computed: true,
+				ValidateFunc: validation.StringInSlice([]string{
+					s3.PayerRequester,
+					s3.PayerBucketOwner,
+				}, false),
 			},
 
 			"replication_configuration": {
@@ -442,9 +439,17 @@ func resourceAwsS3Bucket() *schema.Resource {
 													ValidateFunc: validateArn,
 												},
 												"storage_class": {
-													Type:         schema.TypeString,
-													Optional:     true,
-													ValidateFunc: validation.StringInSlice(s3.StorageClass_Values(), false),
+													Type:     schema.TypeString,
+													Optional: true,
+													ValidateFunc: validation.StringInSlice([]string{
+														s3.StorageClassStandard,
+														s3.StorageClassReducedRedundancy,
+														s3.StorageClassStandardIa,
+														s3.StorageClassOnezoneIa,
+														s3.StorageClassIntelligentTiering,
+														s3.StorageClassGlacier,
+														s3.StorageClassDeepArchive,
+													}, false),
 												},
 												"replica_kms_key_id": {
 													Type:     schema.TypeString,
@@ -458,14 +463,16 @@ func resourceAwsS3Bucket() *schema.Resource {
 													Elem: &schema.Resource{
 														Schema: map[string]*schema.Schema{
 															"owner": {
-																Type:         schema.TypeString,
-																Required:     true,
-																ValidateFunc: validation.StringInSlice(s3.OwnerOverride_Values(), false),
+																Type:     schema.TypeString,
+																Required: true,
+																ValidateFunc: validation.StringInSlice([]string{
+																	s3.OwnerOverrideDestination,
+																}, false),
 															},
 														},
 													},
 												},
-												"metrics": {
+												"replication_time": {
 													Type:     schema.TypeList,
 													Optional: true,
 													MinItems: 1,
@@ -473,9 +480,12 @@ func resourceAwsS3Bucket() *schema.Resource {
 													Elem: &schema.Resource{
 														Schema: map[string]*schema.Schema{
 															"status": {
-																Type:         schema.TypeString,
-																Required:     true,
-																ValidateFunc: validation.StringInSlice(s3.MetricsStatus_Values(), false),
+																Type:     schema.TypeString,
+																Required: true,
+																ValidateFunc: validation.StringInSlice([]string{
+																	s3.ReplicationRuleStatusEnabled,
+																	s3.ReplicationRuleStatusDisabled,
+																}, false),
 															},
 														},
 													},
@@ -513,9 +523,12 @@ func resourceAwsS3Bucket() *schema.Resource {
 										ValidateFunc: validation.StringLenBetween(0, 1024),
 									},
 									"status": {
-										Type:         schema.TypeString,
-										Required:     true,
-										ValidateFunc: validation.StringInSlice(s3.ReplicationRuleStatus_Values(), false),
+										Type:     schema.TypeString,
+										Required: true,
+										ValidateFunc: validation.StringInSlice([]string{
+											s3.ReplicationRuleStatusEnabled,
+											s3.ReplicationRuleStatusDisabled,
+										}, false),
 									},
 									"priority": {
 										Type:     schema.TypeInt,
@@ -567,9 +580,12 @@ func resourceAwsS3Bucket() *schema.Resource {
 													Optional: true,
 												},
 												"sse_algorithm": {
-													Type:         schema.TypeString,
-													Required:     true,
-													ValidateFunc: validation.StringInSlice(s3.ServerSideEncryption_Values(), false),
+													Type:     schema.TypeString,
+													Required: true,
+													ValidateFunc: validation.StringInSlice([]string{
+														s3.ServerSideEncryptionAes256,
+														s3.ServerSideEncryptionAwsKms,
+													}, false),
 												},
 											},
 										},
@@ -588,10 +604,12 @@ func resourceAwsS3Bucket() *schema.Resource {
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"object_lock_enabled": {
-							Type:         schema.TypeString,
-							Required:     true,
-							ForceNew:     true,
-							ValidateFunc: validation.StringInSlice(s3.ObjectLockEnabled_Values(), false),
+							Type:     schema.TypeString,
+							Required: true,
+							ForceNew: true,
+							ValidateFunc: validation.StringInSlice([]string{
+								s3.ObjectLockEnabledEnabled,
+							}, false),
 						},
 
 						"rule": {
@@ -608,9 +626,12 @@ func resourceAwsS3Bucket() *schema.Resource {
 										Elem: &schema.Resource{
 											Schema: map[string]*schema.Schema{
 												"mode": {
-													Type:         schema.TypeString,
-													Required:     true,
-													ValidateFunc: validation.StringInSlice(s3.ObjectLockRetentionMode_Values(), false),
+													Type:     schema.TypeString,
+													Required: true,
+													ValidateFunc: validation.StringInSlice([]string{
+														s3.ObjectLockRetentionModeGovernance,
+														s3.ObjectLockRetentionModeCompliance,
+													}, false),
 												},
 
 												"days": {
@@ -670,7 +691,7 @@ func resourceAwsS3BucketCreate(d *schema.ResourceData, meta interface{}) error {
 
 	// Special case us-east-1 region and do not set the LocationConstraint.
 	// See "Request Elements: http://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketPUT.html
-	if awsRegion != endpoints.UsEast1RegionID {
+	if awsRegion != "us-east-1" {
 		req.CreateBucketConfiguration = &s3.CreateBucketConfiguration{
 			LocationConstraint: aws.String(awsRegion),
 		}
@@ -1278,12 +1299,6 @@ func resourceAwsS3BucketRead(d *schema.ResourceData, meta interface{}) error {
 			// the provider s3_force_path_style configuration, which defaults to
 			// false, but allows override.
 			r.Config.S3ForcePathStyle = s3conn.Config.S3ForcePathStyle
-
-			// By default, GetBucketRegion uses anonymous credentials when doing
-			// a HEAD request to get the bucket region. This breaks in aws-cn regions
-			// when the account doesn't have an ICP license to host public content.
-			// Use the current credentials when getting the bucket region.
-			r.Config.Credentials = s3conn.Config.Credentials
 		})
 	})
 	if err != nil {
@@ -1744,15 +1759,15 @@ func WebsiteDomainUrl(client *AWSClient, region string) string {
 
 func isOldRegion(region string) bool {
 	oldRegions := []string{
-		endpoints.ApNortheast1RegionID,
-		endpoints.ApSoutheast1RegionID,
-		endpoints.ApSoutheast2RegionID,
-		endpoints.EuWest1RegionID,
-		endpoints.SaEast1RegionID,
-		endpoints.UsEast1RegionID,
-		endpoints.UsGovWest1RegionID,
-		endpoints.UsWest1RegionID,
-		endpoints.UsWest2RegionID,
+		"ap-northeast-1",
+		"ap-southeast-1",
+		"ap-southeast-2",
+		"eu-west-1",
+		"sa-east-1",
+		"us-east-1",
+		"us-gov-west-1",
+		"us-west-1",
+		"us-west-2",
 	}
 	for _, r := range oldRegions {
 		if region == r {
@@ -2053,12 +2068,24 @@ func resourceAwsS3BucketReplicationConfigurationUpdate(s3conn *s3.S3, d *schema.
 					ruleAclTranslation.Owner = aws.String(aclTranslationValues["owner"].(string))
 					ruleDestination.AccessControlTranslation = ruleAclTranslation
 				}
-
-				if metrics, ok := bd["metrics"].([]interface{}); ok && len(metrics) > 0 {
-					metricsValues := metrics[0].(map[string]interface{})
-					ruleMetrics := &s3.Metrics{}
-					ruleMetrics.Status = aws.String(metricsValues["status"].(string))
-					ruleDestination.Metrics = ruleMetrics
+				if replicationTimeConfig, ok := bd["replication_time"].([]interface{}); ok && len(replicationTimeConfig) > 0 {
+					rtValues := replicationTimeConfig[0].(map[string]interface{})
+					metrics := &s3.Metrics{}
+					replicationTime := &s3.ReplicationTime{}
+					replicationTimeValue := &s3.ReplicationTimeValue{}
+					// Defining metrics here since right now RTC and Metrics are a "both or none" feature
+					metricsTimeValue := &s3.ReplicationTimeValue{}
+					if status, ok := rtValues["status"]; ok && status != "" {
+						replicationTime.Status = aws.String(status.(string))
+						metrics.Status = aws.String(status.(string))
+					}
+					// Right now we can only use the value 15 for both the metric and RTC time values
+					replicationTimeValue.Minutes = aws.Int64(int64(15))
+					metricsTimeValue.Minutes = aws.Int64(int64(15))
+					metrics.EventThreshold = metricsTimeValue
+					replicationTime.Time = replicationTimeValue
+					ruleDestination.ReplicationTime = replicationTime
+					ruleDestination.Metrics = metrics
 				}
 			}
 		}
@@ -2087,6 +2114,9 @@ func resourceAwsS3BucketReplicationConfigurationUpdate(s3conn *s3.S3, d *schema.
 		if f, ok := rr["filter"].([]interface{}); ok && len(f) > 0 && f[0] != nil {
 			// XML schema V2.
 			rcRule.Priority = aws.Int64(int64(rr["priority"].(int)))
+			rcRule.DeleteMarkerReplication = &s3.DeleteMarkerReplication{
+				Status: aws.String(s3.DeleteMarkerReplicationStatusDisabled),
+			}
 			rcRule.Filter = &s3.ReplicationRuleFilter{}
 			filter := f[0].(map[string]interface{})
 			tags := keyvaluetags.New(filter["tags"]).IgnoreAws().S3Tags()
@@ -2098,11 +2128,20 @@ func resourceAwsS3BucketReplicationConfigurationUpdate(s3conn *s3.S3, d *schema.
 			} else {
 				rcRule.Filter.Prefix = aws.String(filter["prefix"].(string))
 			}
+		}
+
+		if rcRule.Destination != nil && rcRule.Destination.ReplicationTime != nil && rcRule.Filter == nil {
+			// If a filter wasn't defined, but we're using RTC, we still need it to be the v2 schema
+			rcRule.Filter = &s3.ReplicationRuleFilter{}
+			rcRule.Priority = aws.Int64(int64(rr["priority"].(int)))
 			rcRule.DeleteMarkerReplication = &s3.DeleteMarkerReplication{
 				Status: aws.String(s3.DeleteMarkerReplicationStatusDisabled),
 			}
-		} else {
-			// XML schema V1.
+			if rr["prefix"].(string) != "" {
+				rcRule.Filter.Prefix = aws.String(rr["prefix"].(string))
+			}
+		} else if rcRule.Filter == nil {
+			// If RTC and Filter wasn't set then we're using V1
 			rcRule.Prefix = aws.String(rr["prefix"].(string))
 		}
 
@@ -2352,11 +2391,11 @@ func flattenAwsS3BucketReplicationConfiguration(r *s3.ReplicationConfiguration) 
 				}
 				rd["access_control_translation"] = []interface{}{rdt}
 			}
-			if v.Destination.Metrics != nil {
-				rdm := map[string]interface{}{
-					"status": aws.StringValue(v.Destination.Metrics.Status),
+			if v.Destination.ReplicationTime != nil {
+				rdt := map[string]interface{}{
+					"status": aws.StringValue(v.Destination.ReplicationTime.Status),
 				}
-				rd["metrics"] = []interface{}{rdm}
+				rd["replication_time"] = []interface{}{rdt}
 			}
 			t["destination"] = []interface{}{rd}
 		}
@@ -2459,7 +2498,7 @@ func normalizeRegion(region string) string {
 	// Default to us-east-1 if the bucket doesn't have a region:
 	// http://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketGETlocation.html
 	if region == "" {
-		region = endpoints.UsEast1RegionID
+		region = "us-east-1"
 	}
 
 	return region
@@ -2469,7 +2508,7 @@ func normalizeRegion(region string) string {
 // Buckets outside of this region have to be DNS-compliant. After the same restrictions are
 // applied to buckets in the us-east-1 region, this function can be refactored as a SchemaValidateFunc
 func validateS3BucketName(value string, region string) error {
-	if region != endpoints.UsEast1RegionID {
+	if region != "us-east-1" {
 		if (len(value) < 3) || (len(value) > 63) {
 			return fmt.Errorf("%q must contain from 3 to 63 characters", value)
 		}
@@ -2614,8 +2653,38 @@ func destinationHash(v interface{}) int {
 	if v, ok := m["access_control_translation"].([]interface{}); ok && len(v) > 0 && v[0] != nil {
 		buf.WriteString(fmt.Sprintf("%d-", accessControlTranslationHash(v[0])))
 	}
-	if v, ok := m["metrics"].([]interface{}); ok && len(v) > 0 && v[0] != nil {
-		buf.WriteString(fmt.Sprintf("%d-", metricsHash(v[0])))
+	if v, ok := m["replication_time"].([]interface{}); ok && len(v) > 0 && v[0] != nil {
+		buf.WriteString(fmt.Sprintf("%d-", replicationTimeHash(v[0])))
+	}
+	return hashcode.String(buf.String())
+}
+
+func replicationTimeValueHash(v interface{}) int {
+	if v == nil {
+		return 0
+	}
+	var buf bytes.Buffer
+	m := v.(map[string]interface{})
+
+	if v, ok := m["minutes"]; ok {
+		buf.WriteString(fmt.Sprintf("%s-", v.(string)))
+	}
+	return hashcode.String(buf.String())
+}
+
+func replicationTimeHash(v interface{}) int {
+	if v == nil {
+		return 0
+	}
+	var buf bytes.Buffer
+	m := v.(map[string]interface{})
+
+	if v, ok := m["status"]; ok {
+		buf.WriteString(fmt.Sprintf("%s-", v.(string)))
+	}
+
+	if v, ok := m["time"].([]interface{}); ok && len(v) > 0 && v[0] != nil {
+		buf.WriteString(fmt.Sprintf("%d-", replicationTimeValueHash(v[0])))
 	}
 	return hashcode.String(buf.String())
 }
@@ -2629,20 +2698,6 @@ func accessControlTranslationHash(v interface{}) int {
 	}
 
 	if v, ok := m["owner"]; ok {
-		buf.WriteString(fmt.Sprintf("%s-", v.(string)))
-	}
-	return hashcode.String(buf.String())
-}
-
-func metricsHash(v interface{}) int {
-	var buf bytes.Buffer
-	m, ok := v.(map[string]interface{})
-
-	if !ok {
-		return 0
-	}
-
-	if v, ok := m["status"]; ok {
 		buf.WriteString(fmt.Sprintf("%s-", v.(string)))
 	}
 	return hashcode.String(buf.String())
